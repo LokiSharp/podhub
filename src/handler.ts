@@ -1,11 +1,12 @@
 import { Backend } from './backend'
+import { TokenProvider } from './token';
 
 const PROXY_HEADER_ALLOW_LIST: string[] = ["accept", "user-agent", "accept-encoding"]
 
-const ORG_NAME_BACKEND:{ [key: string]: string; } = {
-  "gcr": "https://gcr.io",
-  "k8sgcr": "https://k8s.gcr.io",
-  "quay": "https://quay.io",
+const ORG_NAME_BACKEND: { [key: string]: string; } = {
+    "gcr": "https://gcr.io",
+    "k8sgcr": "https://k8s.gcr.io",
+    "quay": "https://quay.io",
 }
 
 const DEFAULT_BACKEND_HOST: string = "https://registry-1.docker.io"
@@ -20,9 +21,9 @@ async function handleRegistryRequest(request: Request): Promise<Response> {
     const orgName = orgNameFromRequest(url.pathname);
     const pathname = rewritePathByOrg(orgName, url.pathname)
     const host = hostByOrgName(orgName)
-    const backend = new Backend(host)
-    const headers = copyProxyHeaders(request.headers)
-    return backend.proxy(pathname, {method: request.method,headers: request.headers, body: request.body})
+    const tokenProvider = new TokenProvider()
+    const backend = new Backend(host, tokenProvider)
+    return backend.proxy(pathname, { method: request.method, headers: request.headers, body: request.body })
 }
 
 function orgNameFromRequest(pathname: string): string | null {
@@ -38,24 +39,24 @@ function rewritePathByOrg(orgName: string | null, pathname: string): string {
         return pathname;
     }
     const splitedPath: string[] = pathname.split("/");
-    const cleanSplitedPath = splitedPath.filter(function(value: string, index: number) {
+    const cleanSplitedPath = splitedPath.filter(function (value: string, index: number) {
         return value !== orgName || index !== 2;
     });
     return cleanSplitedPath.join("/");
 }
 
-function hostByOrgName(orgName: string|null): string {
+function hostByOrgName(orgName: string | null): string {
     if (orgName !== null && orgName in ORG_NAME_BACKEND) {
         return ORG_NAME_BACKEND[orgName]
     }
     return DEFAULT_BACKEND_HOST
 }
 
-function copyProxyHeaders(inputHeaders: Headers) : Headers {
+function copyProxyHeaders(inputHeaders: Headers): Headers {
     const headers = new Headers;
-    for(const pair of inputHeaders.entries()) {
+    for (const pair of inputHeaders.entries()) {
         if (pair[0].toLowerCase() in PROXY_HEADER_ALLOW_LIST) {
-        headers.append(pair[0], pair[1])
+            headers.append(pair[0], pair[1])
         }
     }
     return headers
